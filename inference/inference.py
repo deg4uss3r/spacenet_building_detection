@@ -1,8 +1,8 @@
 import sys
-sys.path.append('../../src/models')
-sys.path.append('../../src/visualization')
+sys.path.append('../src/models')
+sys.path.append('../src/visualization')
 
-from segmentation import SegmentationModel as Model
+from segmentation_cpu import SegmentationModel as Model
 from visualize_segmentation import overlay_mask
 from os import path
 from PIL import Image
@@ -81,11 +81,10 @@ def create_json(adjusted_polygons):
 def gen_uuid():
     return str(uuid4())
 
-def inference(test_data, image, score, output_file):
+def inference(image, score, output_file):
     building_score = score[1]
     
     building_mask_pred = (np.argmax(score, axis=0) == 1)
-    building_overlay_pred = overlay_mask(image, building_mask_pred)
     polygons = Mask(building_mask_pred).polygons()
     
     new_predictions = []
@@ -106,16 +105,16 @@ def inference(test_data, image, score, output_file):
     # Creating the json with the predicted and then adjusted polygons
     output_json = create_json(new_predictions)
     
-    with(output_file, 'w') as fileholder:
-        json.dump(output_json, fileholder)
+    with open(output_file, 'w') as out_file:
+        json.dump(output_json, out_file)
 
-if __name__ == "__main_": 
+if __name__ == "__main__": 
     import argparse
-    
+
     # Parse command line arguments
     parser = argparse.ArgumentParser(
         description=
-        """polygonize.py: Takes a directory of images and uses the trained Mask_RCNN model to extract polygons of buildings\n\tAdjusts polygons based off the VW algorithm"""
+        """inference.py: takes an image and creates infered polygons  off the VW algorithm and the unet model predictions"""
     )
     parser.add_argument('--input',
                         required=True,
@@ -130,7 +129,7 @@ if __name__ == "__main_":
         '--mean',
         required=True,
         metavar='/full/path/to/mean.npy',
-        help="Must be the output from a unet model weights trained for xView2"
+        help="a numpy data structure file that is the mean of the training images (found by running ./src/features/compute_mean.py)"
     )
     parser.add_argument('--output',
                         required=True,
@@ -139,11 +138,9 @@ if __name__ == "__main_":
 
     # Load trained model# Modify the the paths based on your trained model location if needed.
     mean = np.load(args.mean)
-    model = Model(args.weights, mean, gpu=1)
-    
-
-        
+    model = Model(args.weights, mean)
+ 
     image = np.array(Image.open(args.input))
     score = model.apply_segmentation(image)
-    inference(test_data, image, score, output_file)
+    inference(image, score, args.output)
 
